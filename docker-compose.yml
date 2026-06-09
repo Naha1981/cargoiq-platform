@@ -1,0 +1,132 @@
+version: "3.9"
+
+# ================================================================
+# CargoIQ — Full Stack (dev)
+# Start all:    docker-compose up --build
+# Core only:    docker-compose up api redis
+# With worker:  docker-compose up api web redis cw-worker
+# Phase 2:      docker-compose --profile phase2 up
+# ================================================================
+
+services:
+
+  api:
+    build: { context: ./apps/api, dockerfile: Dockerfile }
+    container_name: cargoiq-api
+    restart: unless-stopped
+    ports: ["8000:8000"]
+    env_file: .env
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "true"
+      REDIS_URL: redis://redis:6379
+    volumes: ["./apps/api:/app"]
+    depends_on:
+      redis: { condition: service_healthy }
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks: [cargoiq]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web:
+    build: { context: ./apps/web, dockerfile: Dockerfile, target: development }
+    container_name: cargoiq-web
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes: ["./apps/web:/app", "/app/node_modules", "/app/.next"]
+    depends_on: [api]
+    networks: [cargoiq]
+
+  cw-worker:
+    build: { context: ./services/cw-worker, dockerfile: Dockerfile }
+    container_name: cargoiq-cw-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      BROWSER_HEADLESS: "true"
+      SCREENSHOT_PATH: /tmp/cargoiq-screenshots
+    volumes: [cw_screenshots:/tmp/cargoiq-screenshots]
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [cargoiq]
+
+  redis:
+    image: redis:7-alpine
+    container_name: cargoiq-redis
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    networks: [cargoiq]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: cargoiq-evolution
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: cargoiq-evolution-key
+      REDIS_ENABLED: "true"
+      REDIS_URI: redis://redis:6379
+      REDIS_PREFIX_KEY: evolution
+      LOG_LEVEL: ERROR
+    depends_on: [redis]
+    networks: [cargoiq]
+    volumes: [evolution_data:/evolution/instances]
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: cargoiq-n8n
+    restart: unless-stopped
+    ports: ["5678:5678"]
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: cargoiq_n8n_2026
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+    volumes: [n8n_data:/home/node/.n8n]
+    depends_on: [redis]
+    networks: [cargoiq]
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cargoiq-qdrant
+    restart: unless-stopped
+    ports: ["6333:6333"]
+    volumes: [qdrant_data:/qdrant/storage]
+    networks: [cargoiq]
+    profiles: [phase2]
+
+volumes:
+  redis_data:
+  n8n_data:
+  qdrant_data:
+  evolution_data:
+  cw_screenshots:
+
+networks:
+  cargoiq:
+    driver: bridge
