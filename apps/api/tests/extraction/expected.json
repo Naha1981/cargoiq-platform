@@ -1,0 +1,22 @@
+{
+  "_README": "Add your sample PDF filenames as keys with expected extracted values.",
+  "_FORMAT": "Each key is the PDF filename, value is a dict of expected field values.",
+  "_EXAMPLE": {
+    "sample_invoice.pdf": {
+      "shipper_name":       "ABC Export Ltd",
+      "consignee_name":     "XYZ Import (Pty) Ltd",
+      "origin_port":        "CNSHA",
+      "destination_port":   "ZADUR",
+      "cargo_description":  "Electronic components",
+      "hs_code_primary":    "85171100",
+      "gross_weight":       "1250",
+      "invoice_number":     "INV-2026-001",
+      "invoice_value":      "15000",
+      "currency":           "USD",
+      "incoterms":          "FOB",
+      "awb_or_bl_number":   "MSCUABCD123456",
+      "shipment_type":      "fcl_import",
+      "number_of_packages": "10"
+    }
+  }
+}
