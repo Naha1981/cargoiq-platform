@@ -1,0 +1,25 @@
+{
+  "name": "cargoiq-e2e-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test":              "playwright test",
+    "test:headed":       "playwright test --headed",
+    "test:debug":        "playwright test --debug",
+    "test:api":          "playwright test specs/08-api-health.spec.ts",
+    "test:auth":         "playwright test specs/01-auth.spec.ts",
+    "test:compliance":   "playwright test specs/04-compliance-shield.spec.ts",
+    "test:workflow":     "playwright test specs/05-shipment-workflow.spec.ts",
+    "test:mobile":       "playwright test --project=mobile-chrome",
+    "test:smoke":        "playwright test specs/01-auth.spec.ts specs/02-dashboard.spec.ts specs/08-api-health.spec.ts",
+    "test:ci":           "playwright test --reporter=list,json",
+    "report":            "playwright show-report ../../test-results/html",
+    "install-browsers":  "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "dotenv":           "^16.4.5",
+    "typescript":       "^5.5.2",
+    "@types/node":      "^20.14.9"
+  }
+}
