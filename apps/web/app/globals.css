@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  :root {
+    --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #E8ECF1; }
+  ::-webkit-scrollbar-thumb { background: #9AAAB8; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6B7E92; }
+
+  /* Focus */
+  :focus-visible {
+    outline: 2px solid #B8860B;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Tables */
+  table { border-collapse: collapse; width: 100%; }
+  th {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #3D5166;
+    text-align: left;
+    padding: 0 16px 14px;
+    border-bottom: 2px solid #C8D0DA;
+  }
+  td {
+    padding: 14px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #DDE3EA;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #E8ECF1; transition: background 80ms; }
+}
+
+@layer components {
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide border rounded-sm;
+  }
+  .badge-pass    { @apply text-success-DEFAULT bg-success-bg border-success-border; }
+  .badge-hold    { @apply text-warning-DEFAULT bg-warning-bg border-warning-border; }
+  .badge-fail    { @apply text-error-DEFAULT   bg-error-bg   border-error-border;   }
+  .badge-info    { @apply text-info-DEFAULT    bg-info-bg    border-info-border;    }
+  .badge-neutral { @apply text-text-tertiary   bg-subtle     border-border;         }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded border-none
+           cursor-pointer transition-colors duration-100 select-none;
+  }
+  .btn-primary   { @apply bg-accent text-text-inverse hover:bg-accent-hover; }
+  .btn-secondary { @apply bg-surface text-text-primary border border-border-strong hover:bg-subtle; }
+  .btn-danger    { @apply bg-error-bg text-error-DEFAULT border border-error-border hover:bg-red-100; }
+  .btn-ghost     { @apply bg-transparent text-text-secondary hover:bg-subtle; }
+  .btn-sm        { @apply px-3 py-1.5 text-xs; }
+  .btn:disabled  { @apply opacity-50 cursor-not-allowed pointer-events-none; }
+
+  /* Cards */
+  .card {
+    @apply bg-surface border border-border rounded-lg;
+  }
+  .card-header {
+    @apply px-6 py-4 border-b border-border bg-subtle flex items-center justify-between;
+  }
+  .card-body  { @apply p-6; }
+
+  /* Form elements */
+  .form-label {
+    @apply block text-xs font-medium text-text-primary mb-1;
+  }
+  .form-input {
+    @apply w-full h-9 px-3 text-sm bg-surface border border-border rounded
+           text-text-primary placeholder:text-text-tertiary
+           focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10
+           transition-colors duration-100;
+  }
+  .form-input-error {
+    @apply border-error-DEFAULT focus:border-error-DEFAULT focus:ring-error-DEFAULT/10;
+  }
+
+  /* Section labels (monospace) */
+  .section-label {
+    font-family: var(--font-mono);
+    @apply text-2xs font-medium uppercase tracking-widest text-text-tertiary;
+  }
+
+  /* Mono values (IDs, codes, amounts) */
+  .mono {
+    font-family: var(--font-mono);
+    @apply text-xs;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse bg-subtle rounded;
+  }
+}
