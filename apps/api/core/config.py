@@ -1,0 +1,43 @@
+"""
+CargoIQ API — Application Configuration
+"""
+from typing import List
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    APP_NAME: str = "CargoIQ API"
+    APP_VERSION: str = "1.0.0"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = False
+    SECRET_KEY: str = "dev-secret-change-in-production"
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
+    ANTHROPIC_API_KEY: str = ""
+    REDIS_URL: str = "redis://localhost:6379"
+    ENCRYPTION_KEY: str = ""
+    MAX_UPLOAD_SIZE_MB: int = 50
+    SENTRY_DSN: str = ""
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+
+settings = Settings()
