@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Settings, Mail, Database, Key, Shield } from "lucide-react";
+import { Settings, Mail, Database, Key, Shield, Globe } from "lucide-react";
 import { TopNav } from "@/components/layout/TopNav";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -10,6 +10,7 @@ const TABS = [
   { id: "email",     label: "Email Connection", icon: Mail      },
   { id: "cargowise", label: "CargoWise",        icon: Database  },
   { id: "wiselayer", label: "WiseLayer",        icon: Shield    },
+  { id: "portals",   label: "Portal Agents",   icon: Globe     },
   { id: "security",  label: "Security",         icon: Key       },
 ];
 
@@ -206,6 +207,92 @@ export default function SettingsPage() {
               </div>
             )}
 
+
+            {tab === "portals" && (
+              <div className="space-y-5">
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="text-sm font-semibold">Portal Agent Credentials</h3>
+                  </div>
+                  <div className="card-body space-y-5">
+                    <div className="p-3 bg-info-bg border border-info-border rounded text-xs text-info-DEFAULT">
+                      All portal credentials are AES-256 encrypted at rest. CargoIQ uses
+                      them to log into portals on your behalf — they are never stored in plain text
+                      and never shared with third parties.
+                    </div>
+
+                    {[
+                      { id: "sars",     label: "SARS eFiling",        url: "efiling.sars.gov.za",     note: "Required for RLA checks and SAD500 submissions" },
+                      { id: "transnet", label: "Transnet / TPT",      url: "tpt.transnet.net",        note: "Required for container and demurrage tracking" },
+                      { id: "maersk",   label: "Maersk Agent Portal", url: "maersk.com",              note: "Optional — enhances container release detection" },
+                      { id: "msc",      label: "MSC Agent Portal",    url: "msc.com",                 note: "Optional — enhances container release detection" },
+                      { id: "hapag",    label: "Hapag-Lloyd",         url: "hapag-lloyd.com",         note: "Optional — enhances container release detection" },
+                    ].map(portal => (
+                      <div key={portal.id} className="border border-border rounded p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-xs font-semibold text-text-primary">{portal.label}</p>
+                            <p className="text-2xs text-text-tertiary">{portal.url} · {portal.note}</p>
+                          </div>
+                          <Globe className="w-4 h-4 text-text-tertiary" />
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="form-label">Username</label>
+                            <input
+                              className="form-input text-sm"
+                              placeholder={`Your ${portal.label} username`}
+                              id={`${portal.id}-username`}
+                            />
+                          </div>
+                          <div>
+                            <label className="form-label">Password</label>
+                            <input
+                              type="password"
+                              className="form-input"
+                              placeholder="••••••••"
+                              id={`${portal.id}-password`}
+                            />
+                          </div>
+                          {portal.id === "sars" && (
+                            <div>
+                              <label className="form-label">OTP / 2FA Seed (optional)</label>
+                              <input
+                                className="form-input font-mono"
+                                placeholder="TOTP seed for automated OTP generation"
+                                id="sars-otp"
+                              />
+                            </div>
+                          )}
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={async () => {
+                              const u = (document.getElementById(`${portal.id}-username`) as HTMLInputElement)?.value;
+                              const p = (document.getElementById(`${portal.id}-password`) as HTMLInputElement)?.value;
+                              if (!u || !p) { toast.error("Enter username and password"); return; }
+                              try {
+                                const res = await fetch("/api/v1/portals/credentials", {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    "Authorization": `Bearer ${localStorage.getItem("cargoiq_token")}`,
+                                  },
+                                  body: JSON.stringify({ portal: portal.id, username: u, password: p }),
+                                });
+                                if (res.ok) toast.success(`${portal.label} credentials saved`);
+                                else toast.error("Save failed");
+                              } catch { toast.error("Network error"); }
+                            }}
+                          >
+                            Save {portal.label} Credentials
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {tab === "security" && (
               <div className="card">
                 <div className="card-header"><h3 className="text-sm font-semibold">Security & Access</h3></div>
