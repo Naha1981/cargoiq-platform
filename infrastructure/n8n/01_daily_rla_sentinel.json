@@ -1,0 +1,48 @@
+{
+  "name": "CargoIQ — 06:00 Daily RLA Sentinel",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 4 * * *" }] }
+      },
+      "name": "Every Day 06:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/portals/rla/bulk-check",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Authorization", "value": "Bearer {{$env.CARGOIQ_INTERNAL_TOKEN}}" }]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ $json.importer_codes }}",
+        "options": {}
+      },
+      "name": "Trigger Bulk RLA Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/analytics/dashboard",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Authorization", "value": "Bearer {{$env.CARGOIQ_INTERNAL_TOKEN}}" }]
+        }
+      },
+      "name": "Get Active Orgs",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [240, 480]
+    }
+  ],
+  "connections": {
+    "Every Day 06:00 SAST": { "main": [[{ "node": "Get Active Orgs", "type": "main", "index": 0 }]] },
+    "Get Active Orgs":       { "main": [[{ "node": "Trigger Bulk RLA Check", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
