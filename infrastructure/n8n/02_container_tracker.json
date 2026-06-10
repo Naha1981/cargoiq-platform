@@ -1,0 +1,48 @@
+{
+  "name": "CargoIQ — 30-Minute Container Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 30 }] }
+      },
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/portals/containers?released=false",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Authorization", "value": "Bearer {{$env.CARGOIQ_INTERNAL_TOKEN}}" }]
+        }
+      },
+      "name": "Get Unreleased Containers",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/portals/containers/bulk-track",
+        "method": "POST",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Authorization", "value": "Bearer {{$env.CARGOIQ_INTERNAL_TOKEN}}" }]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ $json.map(c => c.container_number) }}"
+      },
+      "name": "Queue Tracking Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes":       { "main": [[{ "node": "Get Unreleased Containers", "type": "main", "index": 0 }]] },
+    "Get Unreleased Containers": { "main": [[{ "node": "Queue Tracking Jobs", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
