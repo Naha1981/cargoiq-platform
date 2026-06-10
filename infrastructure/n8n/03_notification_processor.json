@@ -1,0 +1,31 @@
+{
+  "name": "CargoIQ — Notification Queue Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 2 }] }
+      },
+      "name": "Every 2 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/internal/notifications/process",
+        "method": "POST",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-internal-key", "value": "={{$env.CARGOIQ_INTERNAL_KEY}}" }]
+        }
+      },
+      "name": "Process Pending Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Every 2 Minutes": { "main": [[{ "node": "Process Pending Notifications", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
