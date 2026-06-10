@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ListTodo, Shield, BarChart2,
   Settings, Package, ChevronLeft, ChevronRight,
-  LogOut, Building2, Inbox
+  LogOut, Building2, Inbox, Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -12,6 +12,7 @@ import { useState } from "react";
 const NAV_ITEMS = [
   { href: "/dashboard",   icon: LayoutDashboard, label: "Dashboard" },
   { href: "/inbox",       icon: Inbox,           label: "Email Inbox" },
+  { href: "/portals",     icon: Globe,           label: "Portal Agents" },
   { href: "/queue",       icon: ListTodo,        label: "Shipment Queue" },
   { href: "/compliance",  icon: Shield,          label: "Compliance" },
   { href: "/analytics",   icon: BarChart2,       label: "Analytics" },
