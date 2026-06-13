@@ -6,6 +6,7 @@ import {
 import { analyticsApi } from "@/lib/api";
 import { TopNav } from "@/components/layout/TopNav";
 import { KPISkeleton, Skeleton } from "@/components/ui/LoadingSkeleton";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { cn } from "@/lib/utils";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -73,6 +74,8 @@ export default function DashboardPage() {
       <TopNav breadcrumbs={[{ label: "Dashboard" }]} />
 
       <div className="p-6 space-y-6">
+        <OnboardingChecklist />
+
         {/* KPIs */}
         {kpisLoading ? (
           <KPISkeleton />
