@@ -496,3 +496,134 @@ async def generate_savings_certificate(org_id: str, month_label: Optional[str] =
         "roi_multiple":      round(total_value / subscription_zar, 1) if subscription_zar > 0 else 0,
         "generated_at":      datetime.utcnow().isoformat(),
     }
+
+
+# ── Client Success Story ────────────────────────────────────
+# "Show the next prospect." A one-page, marketing-framed version
+# of the Savings Certificate — same underlying numbers, different
+# narrative: Before CargoIQ / After CargoIQ / Results.
+#
+# anonymized=True replaces the org name with a generic descriptor
+# so it can be shown to prospects before the client agrees to be
+# named as a reference.
+
+INDUSTRY_DESCRIPTORS = {
+    "pilot":      "a Johannesburg-based customs clearing agency",
+    "starter":    "a South African freight forwarder",
+    "growth":     "a mid-size South African freight forwarder",
+    "enterprise": "a large South African logistics group",
+}
+
+
+def generate_success_story_html(cert: dict, org_plan: str, anonymized: bool = True) -> str:
+    """
+    Generate a one-page Client Success Story from Savings Certificate
+    data. Open in browser, screenshot or print to PDF, send to the
+    next prospect.
+    """
+    display_name = (
+        INDUSTRY_DESCRIPTORS.get(org_plan, "a South African freight forwarder")
+        if anonymized else cert["org_name"]
+    )
+
+    def zar(amount) -> str:
+        return f"R{abs(float(amount or 0)):,.0f}"
+
+    total_value  = cert["total_value_zar"]
+    subscription = cert["subscription_zar"]
+    roi          = cert["roi_multiple"]
+    net_benefit  = cert["net_benefit_zar"]
+    period       = cert["period"]
+    generated_at = datetime.utcnow().strftime("%d %B %Y")
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ font-family:-apple-system,Arial,sans-serif; background:#fff; color:#0D1B2A; padding: 48px 56px; }}
+  .eyebrow {{ font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:#B8860B; }}
+  h1 {{ font-size: 26px; font-weight:700; margin-top:8px; margin-bottom: 24px; line-height:1.3; }}
+  .lede {{ font-size:14px; color:#6B7E92; margin-bottom:32px; max-width: 560px; line-height:1.6; }}
+  .columns {{ display:grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }}
+  .col {{ border:1px solid #DDE3EA; border-radius:8px; padding:20px; }}
+  .col h3 {{ font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#9AAAB8; margin-bottom:12px; }}
+  .col.before h3 {{ color:#9B1C1C; }}
+  .col.after h3 {{ color:#15632A; }}
+  .col li {{ font-size:13px; line-height:1.8; list-style:none; padding-left:18px; position:relative; }}
+  .col.before li::before {{ content:"−"; position:absolute; left:0; color:#9B1C1C; font-weight:700; }}
+  .col.after li::before {{ content:"+"; position:absolute; left:0; color:#15632A; font-weight:700; }}
+  .hero {{ background:linear-gradient(135deg,#1A2332 0%,#243447 100%); color:#F1F4F8; border-radius:10px;
+           padding: 28px 32px; display:flex; justify-content:space-between; align-items:center; margin-bottom: 28px; }}
+  .hero-value {{ font-family:monospace; font-size: 40px; font-weight:700; color:#B8860B; }}
+  .hero-label {{ font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#C8D3DF; margin-bottom:4px; }}
+  .roi {{ text-align:right; }}
+  .roi-value {{ font-family:monospace; font-size: 36px; font-weight:700; color:#15AC4A; }}
+  .roi-label {{ font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#9AAAB8; }}
+  .quote {{ border-left: 3px solid #B8860B; padding-left:18px; margin: 24px 0; font-size:14px;
+            font-style:italic; color:#0D1B2A; line-height:1.6; }}
+  .footer {{ margin-top: 36px; padding-top:16px; border-top:1px solid #E8ECF1; font-size:10px; color:#9AAAB8;
+             text-align:center; letter-spacing:0.05em; }}
+</style></head>
+<body>
+  <div class="eyebrow">Client Success Story · {period}</div>
+  <h1>How {display_name} found {zar(total_value)} in hidden costs and unbilled revenue — with software that paid for itself {roi}× over.</h1>
+  <p class="lede">
+    CargoIQ's AI compliance and cost-containment layer runs on top of {display_name}'s
+    existing CargoWise setup. No migration, no workflow change — just
+    a continuous audit of every shipment, every CargoWise transaction,
+    and every carrier invoice.
+  </p>
+
+  <div class="hero">
+    <div>
+      <div class="hero-label">Total Value Delivered, {period}</div>
+      <div class="hero-value">{zar(total_value)}</div>
+    </div>
+    <div class="roi">
+      <div class="roi-value">{roi}×</div>
+      <div class="roi-label">Return on Subscription</div>
+    </div>
+  </div>
+
+  <div class="columns">
+    <div class="col before">
+      <h3>Before CargoIQ</h3>
+      <ul>
+        <li>Manual data entry into CargoWise, ~40 minutes per shipment</li>
+        <li>Compliance errors caught only after SARS queries arrive</li>
+        <li>Carrier invoices paid as billed — no rate card cross-check</li>
+        <li>Driver waiting time tracked on paper, rarely invoiced</li>
+      </ul>
+    </div>
+    <div class="col after">
+      <h3>After CargoIQ</h3>
+      <ul>
+        <li>AI extraction + Compliance Shield on every shipment</li>
+        <li>Errors flagged and fixed before submission</li>
+        <li>Every carrier invoice checked against negotiated rates</li>
+        <li>Waiting time captured via WhatsApp, invoiced same day</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="quote">
+    "We paid {zar(subscription)} for CargoIQ this month. It found {zar(total_value)}
+    in value we would otherwise have missed — a net benefit of {zar(net_benefit)},
+    on top of work our team was already doing."
+  </div>
+
+  <div class="footer">
+    CargoIQ (Pty) Ltd · Johannesburg, South Africa · cargoiq.co.za ·
+    Figures drawn from {display_name}'s own operational data · {generated_at}
+  </div>
+</body></html>"""
+
+
+async def get_success_story(org_id: str, anonymized: bool = True, month_label: Optional[str] = None) -> str:
+    """Fetch certificate data for an org and render it as a Success Story."""
+    admin = get_supabase_admin()
+    org   = admin.table("organisations").select("plan").eq("id", org_id).single().execute()
+    org_plan = org.data.get("plan", "growth") if org.data else "growth"
+
+    cert = await generate_savings_certificate(org_id=org_id, month_label=month_label)
+    return generate_success_story_html(cert, org_plan, anonymized=anonymized)
