@@ -32,10 +32,11 @@ def generate_savings_certificate_html(
     errors_caught:     int,
     hours_saved:       float,
     cw_transactions_saved: int,
+    carrier_overcharges_zar: float = 0.0,
 ) -> str:
     """Generate a print-ready HTML Savings Certificate."""
 
-    total_value   = cw_savings_zar + fines_prevented_zar + unbilled_found_zar
+    total_value   = cw_savings_zar + fines_prevented_zar + unbilled_found_zar + carrier_overcharges_zar
     commission    = total_value * 0.20
     net_benefit   = total_value - subscription_zar
     roi_multiple  = round(total_value / subscription_zar, 1) if subscription_zar > 0 else 0
@@ -333,6 +334,12 @@ def generate_savings_certificate_html(
       </td>
       <td class="green">{zar(unbilled_found_zar)}</td>
     </tr>
+    {f'''<tr>
+      <td>Carrier Overcharges Recovered (CarrierInvoice Auditor)<br>
+        <span class="muted">Billed amounts above your negotiated rate card — dispute notices generated</span>
+      </td>
+      <td class="green">{zar(carrier_overcharges_zar)}</td>
+    </tr>''' if carrier_overcharges_zar > 0 else ''}
     <tr>
       <td>Staff Time Recovered<br>
         <span class="muted">{int(hours_saved)} hours at R180/hr — reallocated to billable operations</span>
@@ -444,8 +451,24 @@ async def generate_savings_certificate(org_id: str, month_label: Optional[str] =
     cw_saved       = sum(float(r.get("gross_saving_zar") or 0) for r in (wt.data or []))
     cw_tx_saved    = sum(int(r.get("saved_count") or 0) for r in (wt.data or []))
 
-    # Unbilled revenue (conservative 20% of labour saved)
-    unbilled_zar   = round(hours_saved * 180 * 0.20, 2)
+    # Unbilled revenue: real driver check-in waiting-time findings this month,
+    # plus a conservative residual estimate (10% of labour saved) for
+    # accessorials not yet captured via WhatsApp check-ins.
+    waiting_findings = admin.table("waiting_time_findings").select("unbilled_revenue_zar") \
+        .eq("org_id", org_id).gte("created_at", since).execute()
+    waiting_time_zar = sum(float(r.get("unbilled_revenue_zar") or 0) for r in (waiting_findings.data or []))
+    unbilled_zar     = round(waiting_time_zar + (hours_saved * 180 * 0.10), 2)
+
+    # CarrierInvoice Auditor: overcharges found this month
+    carrier_audits = admin.table("carrier_invoice_audits") \
+        .select("variance_zar,status") \
+        .eq("org_id", org_id).eq("status", "overcharge_detected") \
+        .gte("created_at", since).execute()
+    carrier_overcharges_zar = round(
+        sum(float(r.get("variance_zar") or 0) for r in (carrier_audits.data or [])
+            if (r.get("variance_zar") or 0) > 0),
+        2,
+    )
 
     html = generate_savings_certificate_html(
         org_name              = org_name,
@@ -458,9 +481,10 @@ async def generate_savings_certificate(org_id: str, month_label: Optional[str] =
         errors_caught         = errors_caught,
         hours_saved           = round(hours_saved, 1),
         cw_transactions_saved = cw_tx_saved,
+        carrier_overcharges_zar = carrier_overcharges_zar,
     )
 
-    total_value = cw_saved + fines_prevented_zar + unbilled_zar + (hours_saved * 180)
+    total_value = cw_saved + fines_prevented_zar + unbilled_zar + carrier_overcharges_zar + (hours_saved * 180)
 
     return {
         "org_name":          org_name,
