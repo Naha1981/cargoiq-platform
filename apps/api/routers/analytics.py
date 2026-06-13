@@ -4,7 +4,8 @@ Dashboard KPIs, processing volume, compliance summary.
 """
 import logging
 from datetime import datetime, timedelta, date
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import HTMLResponse
 from ..core.security import get_current_user_with_org
 from ..core.supabase_client import get_supabase_admin
 
@@ -293,3 +294,47 @@ async def waiting_time_findings(
 
     result = q.order("created_at", desc=True).limit(50).execute()
     return result.data
+
+
+@router.get("/waiting-time/findings/{finding_id}/charge-notice", response_class=HTMLResponse)
+async def waiting_time_charge_notice(
+    finding_id: str,
+    current_user: dict = Depends(get_current_user_with_org)
+):
+    """
+    'Double-tap to invoice' — generate a printable Accessorial
+    Charge Notice for one waiting-time finding. Open in browser,
+    print to PDF, attach to the client invoice.
+    """
+    admin  = get_supabase_admin()
+    org_id = current_user["org_id"]
+
+    finding = admin.table("waiting_time_findings").select("*") \
+        .eq("id", finding_id).eq("org_id", org_id).single().execute()
+    if not finding.data:
+        raise HTTPException(404, "Finding not found")
+
+    org = admin.table("organisations").select("name").eq("id", org_id).single().execute()
+    org_name = org.data.get("name", "") if org.data else ""
+
+    from ..services.driver_checkin_service import generate_charge_notice_html
+    html = generate_charge_notice_html(finding.data, org_name)
+    return HTMLResponse(content=html)
+
+
+@router.post("/waiting-time/findings/{finding_id}/invoice")
+async def mark_waiting_time_invoiced(
+    finding_id: str,
+    current_user: dict = Depends(get_current_user_with_org)
+):
+    """Mark a waiting-time finding as invoiced, after issuing the charge notice."""
+    admin  = get_supabase_admin()
+    org_id = current_user["org_id"]
+
+    result = admin.table("waiting_time_findings") \
+        .update({"status": "invoiced"}) \
+        .eq("id", finding_id).eq("org_id", org_id).execute()
+
+    if not result.data:
+        raise HTTPException(404, "Finding not found")
+    return {"message": "Marked as invoiced", "finding": result.data[0]}
