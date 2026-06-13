@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   TrendingDown, TrendingUp, Shield, AlertTriangle,
   CheckCircle, Activity, Clock, Zap, DollarSign,
-  Ship, FileText, RefreshCw
+  Ship, FileText, RefreshCw, Sparkles
 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -105,6 +105,11 @@ export default function SentinelPage() {
   const { data: containers }                      = useQuery({ queryKey: ["sentinel-conts"],   queryFn: () => apiClient.get("/portals/containers?released=false"), refetchInterval: 30000 });
   const { data: certData }                        = useQuery({ queryKey: ["sentinel-cert"],    queryFn: () => apiClient.get("/audit/certificate/data"), refetchInterval: 60000 });
   const { data: waitingFindings, refetch: refetchWaiting } = useQuery({ queryKey: ["sentinel-waiting"], queryFn: () => apiClient.get("/analytics/waiting-time/findings?status=identified"), refetchInterval: 60000 });
+
+  // Mark the "view Sentinel" onboarding step complete on first visit
+  useEffect(() => {
+    apiClient.post("/onboarding/sentinel-viewed", {}).catch(() => {});
+  }, []);
 
   // Leakage counter ticks up every second by ~R550/hr estimate
   // Only if there are unreleased containers with demurrage
@@ -313,6 +318,14 @@ export default function SentinelPage() {
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Download Savings Certificate
+                </a>
+                <a
+                  href="/api/v1/audit/success-story"
+                  target="_blank"
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Generate Success Story (anonymized)
                 </a>
               </div>
             )}
