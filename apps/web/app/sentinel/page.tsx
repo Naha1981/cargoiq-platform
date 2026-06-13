@@ -104,6 +104,7 @@ export default function SentinelPage() {
   const { data: compData }                        = useQuery({ queryKey: ["sentinel-comp"],    queryFn: () => apiClient.get("/analytics/compliance-summary?days=30"), refetchInterval: 30000 });
   const { data: containers }                      = useQuery({ queryKey: ["sentinel-conts"],   queryFn: () => apiClient.get("/portals/containers?released=false"), refetchInterval: 30000 });
   const { data: certData }                        = useQuery({ queryKey: ["sentinel-cert"],    queryFn: () => apiClient.get("/audit/certificate/data"), refetchInterval: 60000 });
+  const { data: waitingFindings, refetch: refetchWaiting } = useQuery({ queryKey: ["sentinel-waiting"], queryFn: () => apiClient.get("/analytics/waiting-time/findings?status=identified"), refetchInterval: 60000 });
 
   // Leakage counter ticks up every second by ~R550/hr estimate
   // Only if there are unreleased containers with demurrage
@@ -335,6 +336,68 @@ export default function SentinelPage() {
             </div>
           </div>
         </div>
+
+        {/* Row 2.5: Unbilled Waiting Time — "double-tap to invoice" */}
+        {(waitingFindings as any[])?.length > 0 && (
+          <div className="rounded-xl bg-slate-900 border border-amber-900/30 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-semibold text-white">
+                Unbilled Waiting Time — Found via Driver WhatsApp Check-Ins
+              </span>
+              <span className="ml-auto text-2xs font-mono text-amber-400">
+                {(waitingFindings as any[]).length} pending
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-800">
+                    {["Reference","Location","Arrived","Departed","Billable","Amount",""].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(waitingFindings as any[]).map((f: any) => (
+                    <tr key={f.id} className="border-b border-slate-800/50">
+                      <td className="px-4 py-3 font-mono text-xs text-amber-400 font-medium">{f.reference || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{f.location_name || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-2xs text-slate-400">
+                        {new Date(f.arrived_at).toLocaleString("en-ZA", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-2xs text-slate-400">
+                        {new Date(f.departed_at).toLocaleString("en-ZA", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-300">{f.billable_minutes}m</td>
+                      <td className="px-4 py-3 font-mono text-sm font-bold text-emerald-400">
+                        R{Number(f.unbilled_revenue_zar || 0).toLocaleString("en-ZA")}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <a
+                          href={`/api/v1/analytics/waiting-time/findings/${f.id}/charge-notice`}
+                          target="_blank"
+                          className="text-2xs text-amber-400 hover:underline font-medium mr-3"
+                        >
+                          Generate Invoice →
+                        </a>
+                        <button
+                          className="text-2xs text-slate-400 hover:text-slate-200 font-medium"
+                          onClick={async () => {
+                            await apiClient.post(`/analytics/waiting-time/findings/${f.id}/invoice`, {});
+                            refetchWaiting();
+                          }}
+                        >
+                          Mark Invoiced
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Row 3: Container demurrage table */}
         {(containers as any[])?.some((c: any) => !c.is_released) && (
