@@ -47,7 +47,7 @@ async def list_shipments(
         .select(
             "id,reference,shipper_name,consignee_name,origin_port,"
             "destination_port,shipment_type,overall_confidence,"
-            "shield_status,status,source,created_at,updated_at"
+            "shield_status,shield_results,status,source,created_at,updated_at"
         ) \
         .eq("org_id", org_id)
 
