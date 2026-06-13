@@ -105,3 +105,58 @@ async def process_notifications(x_internal_key: str = Header(...)):
             }).eq("id", notif["id"]).execute()
 
     return {"processed": sent}
+
+
+# ── Driver WhatsApp check-in webhook ───────────────────────────
+# Evolution API instance naming convention: "cargoiq-<org_id>"
+# When a pilot client connects WhatsApp, name their instance this
+# way so inbound check-ins resolve to the correct org. Until each
+# org has its own instance, the shared "cargoiq" instance can pass
+# org_id explicitly in the webhook URL: /webhooks/whatsapp-checkin/{org_id}
+
+from fastapi import Body as _Body
+from ..services.driver_checkin_service import record_driver_checkin
+
+
+@router.post("/webhooks/whatsapp-checkin/{org_id}")
+async def whatsapp_checkin_webhook(org_id: str, payload: dict = _Body(...)):
+    """
+    Receives Evolution API 'messages.upsert' webhooks for driver
+    text messages. Looks for ARRIVED/DEPARTED check-ins and computes
+    waiting-time findings — no GPS or Traccar required.
+
+    Configure in Evolution API: Settings -> Webhooks -> URL =
+      https://<your-api-domain>/api/v1/internal/webhooks/whatsapp-checkin/{org_id}
+    """
+    try:
+        data = payload.get("data", {})
+        if payload.get("event") != "messages.upsert":
+            return {"status": "ignored"}
+
+        message = data.get("message", {})
+        text = (
+            message.get("conversation")
+            or message.get("extendedTextMessage", {}).get("text")
+            or ""
+        )
+        if not text.strip():
+            return {"status": "ignored", "reason": "no text content"}
+
+        sender = data.get("key", {}).get("remoteJid", "").replace("@s.whatsapp.net", "")
+        push_name = data.get("pushName")
+
+        result = await record_driver_checkin(
+            org_id=org_id,
+            driver_phone=sender,
+            raw_message=text,
+            driver_name=push_name,
+        )
+
+        if result is None:
+            return {"status": "ignored", "reason": "not a check-in message"}
+
+        return {"status": "processed", "result": result}
+
+    except Exception as e:
+        logger.error(f"WhatsApp check-in webhook error: {e}")
+        return {"status": "error", "error": str(e)[:200]}
