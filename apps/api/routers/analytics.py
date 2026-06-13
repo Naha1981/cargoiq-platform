@@ -263,3 +263,33 @@ async def get_roi_summary(
             "sars_penalty_per_error_zar": SARS_PENALTY_PER_ERROR_ZAR,
         }
     }
+
+
+@router.get("/waiting-time")
+async def waiting_time_analytics(
+    current_user: dict = Depends(get_current_user_with_org)
+):
+    """
+    Unbilled waiting-time revenue identified via WhatsApp driver
+    check-ins (ARRIVED/DEPARTED). No GPS or Traccar required —
+    drivers text the gate times, CargoIQ does the rest.
+    """
+    from ..services.driver_checkin_service import get_waiting_time_summary
+    return await get_waiting_time_summary(current_user["org_id"])
+
+
+@router.get("/waiting-time/findings")
+async def waiting_time_findings(
+    status: str = Query("identified"),
+    current_user: dict = Depends(get_current_user_with_org)
+):
+    """List individual waiting-time findings for review/invoicing."""
+    admin  = get_supabase_admin()
+    org_id = current_user["org_id"]
+
+    q = admin.table("waiting_time_findings").select("*").eq("org_id", org_id)
+    if status:
+        q = q.eq("status", status)
+
+    result = q.order("created_at", desc=True).limit(50).execute()
+    return result.data
