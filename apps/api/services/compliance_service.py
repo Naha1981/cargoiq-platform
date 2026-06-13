@@ -45,7 +45,41 @@ class ShieldReport:
             "penalty_risk_detected": self.penalty_risk_detected,
             "block_cargowise": self.block_cargowise,
             "run_at": self.run_at.isoformat(),
+            "risk_score": self.risk_score(),
         }
+
+    def risk_score(self) -> dict:
+        """
+        Collapse the Compliance Shield result into a single 1-5 score
+        for the dashboard's coloured-dot view ("CustomsStop Predictor"
+        lite). 1 = clear, 5 = certain hold/penalty.
+
+        This reuses the Shield's own pass/hold/fail + penalty_risk
+        results — no separate model, no Ollama, no new infrastructure.
+        """
+        failed   = [m for m in self.modules if m.result == "fail"]
+        held     = [m for m in self.modules if m.result == "hold"]
+        penalty  = [m for m in self.modules if m.penalty_risk and m.result != "pass"]
+
+        if any(m.penalty_risk and m.result == "fail" for m in self.modules):
+            score, label = 5, "high"
+        elif failed:
+            score, label = 4, "high"
+        elif penalty or len(held) >= 2:
+            score, label = 3, "medium"
+        elif held:
+            score, label = 2, "low"
+        else:
+            score, label = 1, "clear"
+
+        # Pick the single most actionable resolution to surface
+        top_issue = None
+        for m in (failed + penalty + held):
+            if m.resolution:
+                top_issue = {"module": m.module, "resolution": m.resolution}
+                break
+
+        return {"score": score, "label": label, "top_issue": top_issue}
 
 
 # ============================================================
