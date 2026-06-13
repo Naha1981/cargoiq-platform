@@ -24,6 +24,31 @@ const STATUS_FILTERS = [
   { value: "error",            label: "Error" },
 ];
 
+// CustomsStop risk dot — 1-5 score from the Compliance Shield,
+// collapsed into a coloured dot with a hover tooltip showing the
+// single most actionable fix.
+function RiskDot({ riskScore }: { riskScore?: { score: number; label: string; top_issue?: { module: string; resolution: string } } }) {
+  if (!riskScore) return <span className="text-2xs text-text-tertiary">—</span>;
+
+  const colorMap: Record<string, string> = {
+    clear:  "bg-success-DEFAULT",
+    low:    "bg-info-DEFAULT",
+    medium: "bg-warning-DEFAULT",
+    high:   "bg-error-DEFAULT",
+  };
+
+  const tooltip = riskScore.top_issue
+    ? `Risk ${riskScore.score}/5 (${riskScore.label}) — ${riskScore.top_issue.resolution}`
+    : `Risk ${riskScore.score}/5 (${riskScore.label})`;
+
+  return (
+    <div className="flex items-center gap-1.5" title={tooltip}>
+      <span className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", colorMap[riskScore.label] || "bg-text-tertiary")} />
+      <span className="text-2xs font-mono text-text-tertiary">{riskScore.score}/5</span>
+    </div>
+  );
+}
+
 export default function QueuePage() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -154,6 +179,7 @@ export default function QueuePage() {
                     <th>Type</th>
                     <th>Confidence</th>
                     <th>Shield</th>
+                    <th title="CustomsStop risk — 1 (clear) to 5 (certain hold)">Risk</th>
                     <th>Status</th>
                     <th>Received</th>
                     <th style={{ width: 96 }}>Actions</th>
@@ -188,6 +214,9 @@ export default function QueuePage() {
                       </td>
                       <td>
                         <StatusBadge value={s.shield_status} variant="shield" />
+                      </td>
+                      <td>
+                        <RiskDot riskScore={s.shield_results?.risk_score} />
                       </td>
                       <td>
                         <StatusBadge value={s.status} variant="status" />
