@@ -94,22 +94,10 @@ services:
     networks: [cargoiq]
     volumes: [evolution_data:/evolution/instances]
 
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: cargoiq-n8n
-    restart: unless-stopped
-    ports: ["5678:5678"]
-    environment:
-      N8N_HOST: localhost
-      N8N_PORT: "5678"
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: admin
-      N8N_BASIC_AUTH_PASSWORD: cargoiq_n8n_2026
-      EXECUTIONS_DATA_PRUNE: "true"
-      EXECUTIONS_DATA_MAX_AGE: "168"
-    volumes: [n8n_data:/home/node/.n8n]
-    depends_on: [redis]
-    networks: [cargoiq]
+  # n8n has been REMOVED — cron jobs (RLA check, container tracker,
+  # notification processor, weekly shadow audit) are now handled by
+  # APScheduler running inside the api service (apps/api/scheduler.py).
+  # Check job status at: GET /scheduler/status
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -122,7 +110,6 @@ services:
 
 volumes:
   redis_data:
-  n8n_data:
   qdrant_data:
   evolution_data:
   cw_screenshots:
