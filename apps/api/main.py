@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 
 from .core.config import settings
 from .routers import auth, documents, shipments, analytics, compliance, inbox, internal, portals, audit, carrier_audit, public, onboarding
+from .scheduler import start_scheduler, stop_scheduler
 
 # ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
@@ -24,11 +25,17 @@ logger = logging.getLogger(__name__)
 # ── Lifespan ─────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown events."""
+    """Startup and shutdown events — including the built-in job scheduler."""
     logger.info(f"🚀 CargoIQ API starting — {settings.ENVIRONMENT}")
     logger.info(f"   Supabase: {settings.SUPABASE_URL[:40]}...")
     logger.info(f"   Claude API: {'✓ configured' if settings.ANTHROPIC_API_KEY else '✗ MISSING'}")
+
+    # Start the built-in cron scheduler (replaces n8n entirely)
+    start_scheduler()
+
     yield
+
+    stop_scheduler()
     logger.info("👋 CargoIQ API shutting down")
 
 
@@ -137,3 +144,34 @@ async def health_check():
         status_code=200 if all_ok else 503,
         content={"status": "healthy" if all_ok else "degraded", "checks": checks}
     )
+
+
+@app.get("/scheduler/status", tags=["System"])
+async def scheduler_status():
+    """
+    Show the status and next run time for every scheduled job.
+    Replaces the n8n dashboard. Hit this in browser or curl to
+    confirm the scheduler started and jobs are running.
+    """
+    from .scheduler import _scheduler
+
+    if not _scheduler or not _scheduler.running:
+        return {"scheduler": "stopped", "jobs": []}
+
+    jobs = []
+    for job in _scheduler.get_jobs():
+        next_run = job.next_run_time
+        jobs.append({
+            "id":        job.id,
+            "name":      job.name,
+            "next_run":  next_run.isoformat() if next_run else None,
+            "trigger":   str(job.trigger),
+        })
+
+    return {
+        "scheduler": "running",
+        "timezone":  "UTC",
+        "job_count": len(jobs),
+        "jobs":      jobs,
+    }
+
