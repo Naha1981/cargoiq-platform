@@ -13,6 +13,16 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 from ..core.supabase_client import get_supabase_admin
+from ..core.constants import (
+    DURBAN_40FT_TWO_DAY_PENALTY,
+    FREIGHT_INVOICE_ERROR_RATE,
+    DETENTION_RATE_PER_HOUR_ZAR_MID,
+    DETENTION_FREE_HOURS,
+    DETENTION_UNBILLED_RATE,
+    DETENTION_AVG_WAIT_HOURS,
+    EMPTY_MILE_RATE_HIGH,
+    ROAD_LEG_COST_ZAR,
+)
 from .compliance_service import run_compliance_shield
 
 logger = logging.getLogger(__name__)
@@ -80,7 +90,12 @@ async def run_shadow_audit(
 
             for m in failing_modules:
                 if m.penalty_risk:
-                    penalty_total += 4500  # R4,500 SARS standard fine
+                    # Use verified Durban 40ft 2-day storage penalty
+                    # (R14,169) as the proxy cost for each compliance
+                    # error that would cause a SARS hold. More accurate
+                    # than a flat fine because the actual cost to the
+                    # client is the port storage, not the penalty notice.
+                    penalty_total += DURBAN_40FT_TWO_DAY_PENALTY
 
             penalties_prevented_zar += penalty_total
 
