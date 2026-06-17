@@ -336,3 +336,112 @@ def generate_dispute_notice_html(audit: dict, org_name: str) -> str:
     All variances calculated against rate cards on file · {generated_at}
   </div>
 </body></html>"""
+
+
+# ── FSC (Fuel Surcharge Clause) Auditor ─────────────────────
+# Detects when a carrier hasn't reduced their FSC after diesel
+# price drops. Uses diesel_price_history table + rate card FSC
+# formula to calculate the correct FSC and flag overcharges.
+#
+# Story 2 from the Daily Risk Briefing: "Diesel fell R3.25/litre
+# on 3 June. Your carriers raised FSC fast in April. Are they
+# cutting it now? On R1.5M/month freight = R90k–R120k overcharged."
+
+def calculate_correct_fsc_percent(
+    diesel_base_rate_zar: float,
+    fsc_percent_per_50c:  float,
+    current_diesel_zar:   float,
+) -> float:
+    """
+    Calculate the correct FSC percentage for a given diesel price.
+
+    Standard SA FSC clause: 1% per R0.50/litre above the base rate.
+    Example: base=R22.00, rate=1%/R0.50, diesel=R26.11
+      → surplus = R4.11, steps = floor(4.11/0.50) = 8, FSC = 8%
+
+    When diesel fell to R22.86/litre in June 2026:
+      → surplus = R0.86, steps = floor(0.86/0.50) = 1, FSC = 1%
+      → Correct FSC dropped from 8% to 1% — a 7% reduction
+    """
+    surplus = max(0.0, current_diesel_zar - diesel_base_rate_zar)
+    steps   = int(surplus / 0.50)
+    return round(steps * fsc_percent_per_50c, 3)
+
+
+async def audit_fsc_overcharge(
+    org_id:              str,
+    carrier_name:        str,
+    invoice_freight_zar: float,
+    billed_fsc_percent:  float,
+    invoice_date:        str,     # YYYY-MM-DD
+    region:              str = "gauteng",
+) -> dict:
+    """
+    Check whether the FSC billed on an invoice matches the correct
+    rate for the diesel price on the invoice date.
+
+    Returns:
+        correct_fsc_percent, billed_fsc_percent, overcharge_zar,
+        diesel_price_on_date, is_overcharged
+    """
+    admin = get_supabase_admin()
+
+    # Fetch the rate card for this carrier with FSC fields
+    rc = admin.table("carrier_rate_cards") \
+        .select("diesel_base_rate_zar,fsc_percent_per_50c") \
+        .eq("org_id", org_id) \
+        .ilike("carrier_name", carrier_name) \
+        .eq("charge_type", "baf") \
+        .limit(1).execute()
+
+    if not rc.data or not rc.data[0].get("diesel_base_rate_zar"):
+        return {
+            "status":  "no_fsc_rate_card",
+            "message": f"No FSC formula configured for {carrier_name}. Add diesel_base_rate_zar and fsc_percent_per_50c to the rate card.",
+        }
+
+    base_rate  = float(rc.data[0]["diesel_base_rate_zar"])
+    fsc_rate   = float(rc.data[0]["fsc_percent_per_50c"])
+
+    # Find the diesel price on or before the invoice date
+    diesel_rec = admin.table("diesel_price_history") \
+        .select("price_zar,effective_date") \
+        .eq("region", region) \
+        .lte("effective_date", invoice_date) \
+        .order("effective_date", desc=True) \
+        .limit(1).execute()
+
+    if not diesel_rec.data:
+        return {
+            "status":  "no_diesel_price",
+            "message": f"No diesel price on record for {invoice_date}. Add to diesel_price_history table.",
+        }
+
+    diesel_price = float(diesel_rec.data[0]["price_zar"])
+    diesel_date  = diesel_rec.data[0]["effective_date"]
+
+    correct_fsc  = calculate_correct_fsc_percent(base_rate, fsc_rate, diesel_price)
+    correct_amount = round(invoice_freight_zar * correct_fsc / 100, 2)
+    billed_amount  = round(invoice_freight_zar * billed_fsc_percent / 100, 2)
+    overcharge     = round(billed_amount - correct_amount, 2)
+
+    return {
+        "status":                "overcharge_detected" if overcharge > 0 else "clean",
+        "carrier":               carrier_name,
+        "invoice_date":          invoice_date,
+        "diesel_price_on_date":  diesel_price,
+        "diesel_price_date":     diesel_date,
+        "diesel_base_rate":      base_rate,
+        "correct_fsc_percent":   correct_fsc,
+        "billed_fsc_percent":    billed_fsc_percent,
+        "invoice_freight_zar":   invoice_freight_zar,
+        "correct_fsc_amount_zar": correct_amount,
+        "billed_fsc_amount_zar":  billed_amount,
+        "overcharge_zar":         max(0.0, overcharge),
+        "is_overcharged":         overcharge > 0,
+        "note": (
+            f"Diesel was R{diesel_price}/litre on {diesel_date}. "
+            f"Correct FSC = {correct_fsc}%. Carrier billed {billed_fsc_percent}%. "
+            f"Overcharge = R{max(0.0, overcharge):,.2f}."
+        ) if overcharge > 0 else "FSC correctly applied.",
+    }
