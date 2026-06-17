@@ -383,14 +383,29 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=1800,
     )
 
+    # ── Job 5: Diesel price log reminder — 1st of month ───────
+    # DMPR publishes new prices on the 1st of each month.
+    # This job logs a reminder in the scheduler output so the
+    # founder knows to update diesel_price_history manually.
+    # (Full automation would require scraping DMPR — fragile.)
+    scheduler.add_job(
+        diesel_price_reminder,
+        CronTrigger(day=1, hour=6, minute=0, timezone="UTC"),
+        id="diesel_price_reminder",
+        name="Monthly diesel price update reminder",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     scheduler.start()
     _scheduler = scheduler
 
-    logger.info("✅ Scheduler started — 4 jobs registered")
+    logger.info("✅ Scheduler started — 5 jobs registered")
     logger.info("   [1] Daily RLA check         — 06:00 SAST daily")
     logger.info("   [2] Container tracker        — every 30 min")
     logger.info("   [3] Notification processor   — every 2 min")
     logger.info("   [4] Shadow audit sweep       — Mon 07:00 SAST")
+    logger.info("   [5] Diesel price reminder    — 1st of month")
 
     return scheduler
 
@@ -401,3 +416,27 @@ def stop_scheduler():
     if _scheduler and _scheduler.running:
         _scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
+
+
+# ── Job 5: Diesel price reminder ─────────────────────────────
+
+async def diesel_price_reminder():
+    """
+    DMPR publishes new pump prices on the 1st of every month.
+    This job logs a prominent reminder so the FSC auditor stays
+    current. Full automation (scraping DMPR) is fragile — a
+    30-second manual update is more reliable for a solo founder.
+
+    To update: INSERT INTO diesel_price_history (price_zar, region,
+    effective_date) VALUES (...) in Supabase SQL Editor, or call
+    POST /api/v1/carrier-audit/diesel-prices (endpoint to add).
+    """
+    logger.info(
+        "[SCHED] 💡 DIESEL PRICE REMINDER — DMPR publishes new prices today.\n"
+        "   Action: Check https://www.energy.gov.za/files/esources/petroleum/petroleum_prices.html\n"
+        "   Then INSERT into diesel_price_history:\n"
+        "   INSERT INTO diesel_price_history (price_zar, region, effective_date)\n"
+        "   VALUES (<gauteng_price>, 'gauteng', '<today>'),\n"
+        "          (<coast_price>,   'coast',   '<today>');\n"
+        "   This keeps the FSC Auditor accurate for the new month."
+    )
