@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ListTodo, Shield, BarChart2,
   Settings, Package, ChevronLeft, ChevronRight,
-  LogOut, Building2, Inbox, Globe, Activity, Receipt, Search
+  LogOut, Building2, Inbox, Globe, Activity, Receipt, Search, Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/sentinel",    icon: Activity,        label: "Sentinel" },
   { href: "/carrier-audit", icon: Receipt,       label: "Carrier Auditor" },
   { href: "/shadow-audit",  icon: Search,         label: "Shadow Audit" },
+  { href: "/leads",         icon: Users,          label: "Deal Hunter" },
   { href: "/queue",       icon: ListTodo,        label: "Shipment Queue" },
   { href: "/compliance",  icon: Shield,          label: "Compliance" },
   { href: "/analytics",   icon: BarChart2,       label: "Analytics" },
