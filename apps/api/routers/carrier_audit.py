@@ -221,3 +221,56 @@ async def get_dispute_notice(
         .eq("id", audit_id).execute()
 
     return HTMLResponse(content=html)
+
+
+# ── FSC (Fuel Surcharge Clause) audit endpoint ────────────────
+
+class FSCAuditRequest(BaseModel):
+    carrier_name:        str
+    invoice_freight_zar: float  # Base freight amount (excl. FSC)
+    billed_fsc_percent:  float  # FSC % as billed on the invoice
+    invoice_date:        str    # YYYY-MM-DD
+    region:              str = "gauteng"
+
+
+@router.post("/fsc-audit")
+async def audit_fsc(
+    body: FSCAuditRequest,
+    current_user: dict = Depends(get_current_user_with_org),
+):
+    """
+    Check whether a carrier's billed FSC matches the correct rate
+    for the diesel price on that invoice date.
+
+    Story: Diesel fell R3.25/litre on 3 June 2026. Carriers were
+    fast to add the FSC premium in April but slow to reduce it.
+    On R1.5M/month freight spend = R90k–R120k/month overcharged.
+
+    Requires: rate card for this carrier with charge_type='baf',
+    diesel_base_rate_zar and fsc_percent_per_50c populated.
+    """
+    from ..services.carrier_audit_service import audit_fsc_overcharge
+    return await audit_fsc_overcharge(
+        org_id=current_user["org_id"],
+        carrier_name=body.carrier_name,
+        invoice_freight_zar=body.invoice_freight_zar,
+        billed_fsc_percent=body.billed_fsc_percent,
+        invoice_date=body.invoice_date,
+        region=body.region,
+    )
+
+
+@router.get("/diesel-prices")
+async def get_diesel_prices(
+    region: Optional[str] = Query("gauteng"),
+    limit:  int = Query(10, ge=1, le=60),
+    current_user: dict = Depends(get_current_user_with_org),
+):
+    """Recent diesel price history — used by the FSC auditor and dashboard."""
+    admin  = get_supabase_admin()
+    result = admin.table("diesel_price_history") \
+        .select("*") \
+        .eq("region", region) \
+        .order("effective_date", desc=True) \
+        .limit(limit).execute()
+    return result.data
