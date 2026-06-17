@@ -488,6 +488,97 @@ def check_rla_status(shipment: dict, org_id: str, supabase_admin=None) -> Module
     )
 
 
+# ── Module 7: SARS TMS Pre-Declaration (mandatory 1 June 2026) ──────────────
+
+# SADC countries whose vehicles require TMS declaration when entering SA
+# Source: SARS.gov.za — No SACU exemptions. Applies to ALL foreign plates.
+TMS_REQUIRED_COUNTRY_CODES = {
+    "ZW", "ZM", "BW", "NA", "LS", "SZ", "MZ", "MW", "TZ",
+    "KE", "UG", "AO", "CD", "MG",  # full SADC + common corridors
+}
+
+# Effective date: 1 June 2026 (confirmed SARS media release 19 May 2026)
+TMS_EFFECTIVE_DATE = "2026-06-01"
+
+
+def check_tms_declaration(shipment: dict) -> ModuleResult:
+    """
+    Module 7: SARS Traveller Management System (TMS) Pre-Declaration Check
+
+    From 1 June 2026, ALL foreign-registered vehicles entering or leaving
+    South Africa must be declared on the SARS TMS before the border crossing.
+    Applies to all foreign plates including SACU (Botswana, Namibia, eSwatini,
+    Lesotho). No exceptions.
+
+    This module flags cross-border shipments that involve a foreign-registered
+    vehicle where TMS pre-declaration has not been confirmed.
+
+    Source: SARS media release 19 May 2026 / sars.gov.za/travellerdeclaration
+    Penalty risk: 24–48 hour vehicle detention at border = R15,000–R36,000
+    """
+    shipment_type = (shipment.get("shipment_type") or "").lower()
+    origin_country = (shipment.get("origin_country_code") or "").upper()
+    dest_country   = (shipment.get("destination_country_code") or "ZA").upper()
+    vehicle_reg    = shipment.get("vehicle_registration_country", "")
+
+    # Only applies to road cross-border shipments
+    if shipment_type not in ("road_import", "road_export", "cross_border", "road"):
+        return ModuleResult(
+            module="tms_declaration",
+            result="pass",
+            detail={"message": "Not a road cross-border shipment — TMS check not applicable"},
+            penalty_risk=False,
+        )
+
+    # Check if a foreign-registered vehicle is involved
+    is_cross_border = (
+        origin_country in TMS_REQUIRED_COUNTRY_CODES or
+        dest_country not in ("ZA", "") or
+        (vehicle_reg and vehicle_reg.upper() not in ("ZA", "RSA", "SOUTH AFRICA", ""))
+    )
+
+    if not is_cross_border:
+        return ModuleResult(
+            module="tms_declaration",
+            result="pass",
+            detail={"message": "SA-registered vehicle, domestic route — TMS not required"},
+            penalty_risk=False,
+        )
+
+    # TMS declared? Check the shipment metadata
+    tms_declared = shipment.get("tms_declaration_number") or shipment.get("tms_declared")
+
+    if not tms_declared:
+        return ModuleResult(
+            module="tms_declaration",
+            result="hold",
+            detail={
+                "message": "Foreign-registered vehicle on cross-border route — TMS pre-declaration not confirmed",
+                "origin_country": origin_country,
+                "vehicle_reg_country": vehicle_reg,
+                "effective_date": TMS_EFFECTIVE_DATE,
+                "regulation": "SARS TMS mandatory from 1 June 2026 — all foreign plates, no SACU exemption",
+            },
+            penalty_risk=True,
+            resolution=(
+                "Complete TMS pre-declaration at sars.gov.za/travellerdeclaration BEFORE "
+                "the vehicle reaches the border. Non-compliance = 24–48 hour vehicle detention "
+                "at Beitbridge/Lebombo = R15,000–R36,000 in idle time, allowances, and "
+                "missed-delivery penalties. Record the TMS permit number on this shipment."
+            ),
+        )
+
+    return ModuleResult(
+        module="tms_declaration",
+        result="pass",
+        detail={
+            "message": "TMS pre-declaration confirmed",
+            "tms_reference": str(tms_declared),
+        },
+        penalty_risk=False,
+    )
+
+
 # ============================================================
 # SHIELD ORCHESTRATOR
 # ============================================================
@@ -530,6 +621,9 @@ def run_compliance_shield(
     # Module 6: RLA sentinel (if configured)
     if run_rla and org_id and supabase_admin:
         results.append(check_rla_status(shipment, org_id, supabase_admin))
+
+    # Module 7: SARS TMS pre-declaration (cross-border, mandatory from 1 June 2026)
+    results.append(check_tms_declaration(shipment))
 
     # Determine overall status
     if any(r.result == "fail" for r in results):
