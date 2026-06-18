@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from .core.config import settings
-from .routers import auth, documents, shipments, analytics, compliance, inbox, internal, portals, audit, carrier_audit, public, onboarding, leads
+from .routers import auth, documents, shipments, analytics, compliance, inbox, internal, portals, audit, carrier_audit, public, onboarding, leads, compliance_tools
 from .scheduler import start_scheduler, stop_scheduler
 
 # ── Logging ──────────────────────────────────────────────────
@@ -114,7 +114,8 @@ app.include_router(audit.router,    prefix=API_V1)
 app.include_router(carrier_audit.router, prefix=API_V1)
 app.include_router(public.router, prefix=API_V1)
 app.include_router(onboarding.router, prefix=API_V1)
-app.include_router(leads.router,     prefix=API_V1)
+app.include_router(leads.router,           prefix=API_V1)
+app.include_router(compliance_tools.router, prefix=API_V1)
 
 
 # ── Health & Root ─────────────────────────────────────────────
