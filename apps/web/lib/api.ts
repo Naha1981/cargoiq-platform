@@ -91,6 +91,7 @@ export const shipmentsApi = {
   list: (params: {
     page?: number; limit?: number; status?: string;
     confidence?: string; shield?: string; search?: string;
+    importer_client?: string;
   } = {}) => {
     const q = new URLSearchParams();
     if (params.page)       q.set("page", String(params.page));
@@ -99,6 +100,7 @@ export const shipmentsApi = {
     if (params.confidence) q.set("confidence", params.confidence);
     if (params.shield)     q.set("shield", params.shield);
     if (params.search)     q.set("search", params.search);
+    if (params.importer_client) q.set("importer_client", params.importer_client);
     return apiFetch<any>(`/shipments/?${q}`);
   },
 
