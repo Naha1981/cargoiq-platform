@@ -36,6 +36,7 @@ async def list_shipments(
     confidence: Optional[str] = Query(None),
     shield: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    importer_client: Optional[str] = Query(None, description="Agency Mode — filter by importer client name"),
     current_user: dict = Depends(get_current_user_with_org)
 ):
     """List shipments with filtering and pagination."""
@@ -47,7 +48,8 @@ async def list_shipments(
         .select(
             "id,reference,shipper_name,consignee_name,origin_port,"
             "destination_port,shipment_type,overall_confidence,"
-            "shield_status,shield_results,status,source,created_at,updated_at"
+            "shield_status,shield_results,status,source,"
+            "importer_client_name,created_at,updated_at"
         ) \
         .eq("org_id", org_id)
 
@@ -57,6 +59,8 @@ async def list_shipments(
         query = query.eq("overall_confidence", confidence)
     if shield:
         query = query.eq("shield_status", shield)
+    if importer_client:
+        query = query.ilike("importer_client_name", f"%{importer_client}%")
     if search:
         query = query.or_(
             f"shipper_name.ilike.%{search}%,"
@@ -70,6 +74,8 @@ async def list_shipments(
     count_q = admin.table("shipments").select("id", count="exact").eq("org_id", org_id)
     if status_filter:
         count_q = count_q.eq("status", status_filter)
+    if importer_client:
+        count_q = count_q.ilike("importer_client_name", f"%{importer_client}%")
     total = count_q.execute().count or 0
 
     return PaginatedResponse(
