@@ -388,7 +388,7 @@ export default function SentinelPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <a
-                          href={`/api/v1/analytics/waiting-time/findings/${f.id}/charge-notice`}
+                          href={`${API_BASE}/api/v1/invoices/${f.id}/print`}
                           target="_blank"
                           className="text-2xs text-amber-400 hover:underline font-medium mr-3"
                         >
@@ -397,7 +397,7 @@ export default function SentinelPage() {
                         <button
                           className="text-2xs text-slate-400 hover:text-slate-200 font-medium"
                           onClick={async () => {
-                            await apiClient.post(`/analytics/waiting-time/findings/${f.id}/invoice`, {});
+                            await apiClient.post(`/invoices/from-finding/${f.id}`, { due_days: 30 });
                             refetchWaiting();
                           }}
                         >
