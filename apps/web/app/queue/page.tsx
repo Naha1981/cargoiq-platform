@@ -52,14 +52,16 @@ function RiskDot({ riskScore }: { riskScore?: { score: number; label: string; to
 export default function QueuePage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const [status, setStatus]   = useState("");
-  const [search, setSearch]   = useState("");
-  const [page, setPage]       = useState(1);
+  const [status, setStatus]             = useState("");
+  const [search, setSearch]             = useState("");
+  const [importerClient, setImporterClient] = useState("");
+  const [page, setPage]                 = useState(1);
   const LIMIT = 25;
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["shipments", { status, search, page }],
-    queryFn: () => shipmentsApi.list({ status, search, page, limit: LIMIT }),
+    queryKey: ["shipments", { status, search, page, importerClient }],
+    queryFn: () => shipmentsApi.list({ status, search, page, limit: LIMIT,
+      ...(importerClient ? { importer_client: importerClient } : {}) }),
     placeholderData: prev => prev,
   });
 
@@ -130,6 +132,18 @@ export default function QueuePage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="form-input pl-9 w-72 h-8 text-xs"
+            />
+          </div>
+
+          {/* Agency Mode: filter by importer client */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Filter by importer client…"
+              value={importerClient}
+              onChange={e => { setImporterClient(e.target.value); setPage(1); }}
+              className="form-input w-52 h-8 text-xs"
+              title="Agency Mode — filter shipments by your importer client name"
             />
           </div>
 
