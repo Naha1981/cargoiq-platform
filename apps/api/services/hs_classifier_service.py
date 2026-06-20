@@ -29,9 +29,41 @@ from pydantic import BaseModel, Field
 import anthropic
 import instructor
 from ..core.config import settings
-from ..core.constants import check_tariff_amendment_match
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_tariff_amendment_db(cargo_description: str, hs_chapter: str = "") -> Optional[dict]:
+    """
+    Check the tariff_amendments table (Supabase) for a match against
+    this cargo description or HS chapter. This is the zero-cost,
+    founder-editable alternative to a paid scraping service — add a
+    row whenever SARS publishes a change, no redeploy required.
+    """
+    from ..core.supabase_client import get_supabase_admin
+    admin = get_supabase_admin()
+
+    desc_lower = (cargo_description or "").lower()
+    chapter = (hs_chapter or "")[:2]
+
+    try:
+        amendments = admin.table("tariff_amendments") \
+            .select("*") \
+            .order("effective_date", desc=True) \
+            .limit(50).execute()
+    except Exception as e:
+        logger.warning(f"Tariff amendment lookup failed (non-fatal): {e}")
+        return None
+
+    for amendment in (amendments.data or []):
+        keywords = amendment.get("keywords") or []
+        chapters = amendment.get("hs_chapters") or []
+        keyword_match = any(kw.lower() in desc_lower for kw in keywords)
+        chapter_match = chapter and chapter in chapters
+        if keyword_match or chapter_match:
+            return amendment
+
+    return None
 
 # ── Common high-risk SA classification pairs ─────────────────
 # Pairs where the difference between two plausible codes is
@@ -166,23 +198,28 @@ Provide your best 8-digit SARS HS code suggestion with duty rate and risk assess
         # steel/polyethylene/machinery amendments: an importer's HS
         # code mapping is technically correct in format but now
         # references an OUTDATED duty rate that SARS has since changed.
-        amendment = check_tariff_amendment_match(
+        #
+        # Reads from the tariff_amendments table — add new rows there
+        # (via POST /compliance-tools/tariff-amendments or directly in
+        # SQL Editor) whenever SARS publishes a change. No redeploy,
+        # no scraping service, zero ongoing cost.
+        amendment = await _check_tariff_amendment_db(
             cargo_description, suggestion.suggested_hs_chapter
         )
         if amendment:
             result["tariff_amendment_alert"] = {
                 "effective_date": amendment["effective_date"],
                 "category":       amendment["category"],
-                "change":         amendment["change"],
-                "source":         amendment["source"],
+                "change":         amendment["change_description"],
+                "source":         amendment.get("source"),
             }
             result["classification_risk"] = "high"
             existing_action = result.get("action_required") or ""
             result["action_required"] = (
                 f"SARS amended the {amendment['category']} tariff schedule on "
-                f"{amendment['effective_date']}: {amendment['change']}. Confirm this "
-                f"shipment's duty calculation reflects the new rate before submission. "
-                + existing_action
+                f"{amendment['effective_date']}: {amendment['change_description']}. "
+                f"Confirm this shipment's duty calculation reflects the new rate "
+                f"before submission. " + existing_action
             ).strip()
 
         logger.info(
