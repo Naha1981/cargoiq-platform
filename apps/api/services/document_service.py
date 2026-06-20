@@ -1,6 +1,9 @@
 """
 CargoIQ — Document Service
-Handles PDF upload, storage, OCR extraction via Marker.
+Handles PDF upload, storage, and text extraction.
+Primary: pypdf (fast, for digitally-generated PDFs — most invoices,
+SAD500s, and CargoWise exports). Fallback: Tesseract OCR for scanned
+or photographed documents (free, CPU-only, no GPU required).
 """
 import io
 import uuid
@@ -103,25 +106,25 @@ def extract_text_from_pdf(file_content: bytes, filename: str) -> Tuple[str, str,
         logger.warning(f"pypdf extraction failed: {e}")
         page_count = 1
 
-    # Fallback: Marker OCR for scanned documents
+    # Fallback: Tesseract OCR for scanned documents (free, CPU-only,
+    # no GPU required — tesseract-ocr + poppler-utils are tiny apt
+    # packages, no PyTorch/CUDA dependency chain)
     try:
-        from marker.convert import convert_single_pdf
-        from marker.models import load_all_models
+        import pytesseract
+        import pdf2image
 
-        logger.info(f"Running Marker OCR on {filename}")
-        models = load_all_models()
-        full_text, _, _ = convert_single_pdf(
-            io.BytesIO(file_content),
-            models,
-            max_pages=50,
-            langs=["English"],
-            batch_multiplier=2
-        )
-        logger.info(f"Marker OCR complete: {len(full_text)} chars")
-        return full_text, "marker_ocr", page_count
+        logger.info(f"Running Tesseract OCR on {filename}")
+        images = pdf2image.convert_from_bytes(file_content, last_page=50)
+        page_count = len(images)
+        pages_text = [pytesseract.image_to_string(img) for img in images]
+        full_text = "\n\n".join(pages_text).strip()
+        logger.info(f"Tesseract OCR complete: {len(full_text)} chars, {page_count} pages")
+        return full_text, "tesseract_ocr", page_count
 
     except ImportError:
-        logger.warning("Marker not available, using pdfplumber fallback")
+        logger.warning("pytesseract not available, using pdfplumber fallback")
+    except Exception as e:
+        logger.warning(f"Tesseract OCR failed: {e}, using pdfplumber fallback")
 
     # Last resort: pdfplumber
     try:
