@@ -197,7 +197,7 @@ async def _handle_whatsapp_command(
     Returns None if the text isn't a recognised command.
     """
     from ..core.supabase_client import get_supabase_admin
-    from ..services.notification_service import _send_whatsapp
+    from ..services.notification_service import _whatsapp as _send_whatsapp
 
     match = _COMMAND_PATTERN.match(text)
     if not match:
