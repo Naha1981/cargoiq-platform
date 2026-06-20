@@ -9,6 +9,7 @@ All figures below are sourced from:
 
 Update this file — not individual service files — whenever tariffs change.
 """
+from typing import Optional
 
 # ── Durban port storage (Pier 1, Pier 2, Point) ─────────────
 # Free time: 3 days from container discharge
@@ -116,3 +117,59 @@ LEAKAGE_CARRIER_OVERCHARGES       = 60_000.0   # R1.5M × 4% conservative error 
 LEAKAGE_SARS_STORAGE_ONE_HOLD     = 22_940.0   # 1 container, 3 days past free time
 LEAKAGE_EMPTY_BACKHAULS           = 75_000.0   # 15 × R25k × 20%
 LEAKAGE_TOTAL_MONTHLY             = 217_340.0  # = sum of above
+
+
+# ── Known SARS tariff amendments ─────────────────────────────
+# A running log of confirmed SARS tariff schedule changes. The
+# HS Classifier checks cargo descriptions against this list and
+# flags a warning if the commodity falls into a recently-amended
+# category — these are exactly the classifications where an
+# importer's old HS code mapping is now wrong and risks a
+# retroactive penalty when SARS catches the mismatch.
+#
+# Update this list whenever SARS publishes a tariff amendment
+# (sars.gov.za/legal-counsel/preparation-of-legislation/tariff-amendments).
+# This is a manually-curated log, not a live feed — reliability
+# over fragile automation for a solo founder.
+
+KNOWN_TARIFF_AMENDMENTS = [
+    {
+        "effective_date": "2026-06-12",
+        "category":       "steel",
+        "keywords":       ["steel", "flat-rolled", "hot-rolled", "cold-rolled", "steel coil", "steel sheet"],
+        "change":         "Safeguard duty introduced — 15%+ depending on product, 3-year protection period",
+        "hs_chapters":     ["72", "73"],
+        "source":         "SARS.gov.za tariff amendment, 12 June 2026",
+    },
+    {
+        "effective_date": "2026-06-12",
+        "category":       "polyethylene",
+        "keywords":       ["polyethylene", "PE film", "PE bags", "PE containers", "plastic film", "plastic packaging"],
+        "change":         "Anti-dumping duty structure changed on polyethylene products",
+        "hs_chapters":     ["39"],
+        "source":         "SARS.gov.za tariff amendment, 12 June 2026",
+    },
+    {
+        "effective_date": "2026-06-12",
+        "category":       "machinery",
+        "keywords":       ["industrial machinery", "industrial equipment", "machinery parts"],
+        "change":         "Tariff relief — select industrial machinery reduced from 20% to 15%",
+        "hs_chapters":     ["84", "85"],
+        "source":         "SARS.gov.za tariff amendment, 12 June 2026",
+    },
+]
+
+
+def check_tariff_amendment_match(cargo_description: str, hs_chapter: str = "") -> Optional[dict]:
+    """
+    Check whether a cargo description or HS chapter matches a
+    recently-amended SARS tariff category. Used by the HS
+    Classifier to add a time-sensitive warning when relevant.
+    """
+    desc_lower = (cargo_description or "").lower()
+    for amendment in KNOWN_TARIFF_AMENDMENTS:
+        keyword_match = any(kw in desc_lower for kw in amendment["keywords"])
+        chapter_match = hs_chapter and hs_chapter[:2] in amendment["hs_chapters"]
+        if keyword_match or chapter_match:
+            return amendment
+    return None
