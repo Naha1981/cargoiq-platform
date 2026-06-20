@@ -7,7 +7,7 @@ CargoIQ — Compliance Tools Router
   GET  /compliance-tools/liability/{name}   — drill into one importer's exposure
 """
 import logging
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from ..core.security import get_current_user_with_org
@@ -102,3 +102,48 @@ async def importer_liability_detail(
 ):
     """Drill into one importer's shipment history and estimated exposure."""
     return await get_importer_exposure(current_user["org_id"], importer_name)
+
+
+# ── Tariff Amendment Watch (zero-cost SARS tariff alerts) ───
+# The manual, zero-API-cost alternative to a paid scraping
+# service. Add a row whenever SARS publishes a tariff change —
+# the HS Classifier picks it up immediately, no redeploy needed.
+
+class TariffAmendmentCreate(BaseModel):
+    effective_date:      str   # YYYY-MM-DD
+    category:             str
+    keywords:             List[str]
+    hs_chapters:          List[str] = []
+    change_description:   str
+    source:                Optional[str] = None
+
+
+@router.post("/tariff-amendments", status_code=201)
+async def add_tariff_amendment(
+    body: TariffAmendmentCreate,
+    current_user: dict = Depends(get_current_user_with_org),
+):
+    """
+    Log a new SARS tariff amendment. Costs nothing — no scraping
+    service, no API call. Takes 30 seconds: read the SARS notice,
+    fill in the category and keywords, submit. The HS Classifier
+    immediately starts flagging matching cargo descriptions.
+    """
+    from ..core.supabase_client import get_supabase_admin
+    admin  = get_supabase_admin()
+    record = body.model_dump()
+    record["added_by"] = current_user.get("email", "unknown")
+    result = admin.table("tariff_amendments").insert(record).execute()
+    return result.data[0]
+
+
+@router.get("/tariff-amendments")
+async def list_tariff_amendments(
+    current_user: dict = Depends(get_current_user_with_org),
+):
+    """List all logged tariff amendments, most recent first."""
+    from ..core.supabase_client import get_supabase_admin
+    admin  = get_supabase_admin()
+    result = admin.table("tariff_amendments") \
+        .select("*").order("effective_date", desc=True).execute()
+    return result.data
