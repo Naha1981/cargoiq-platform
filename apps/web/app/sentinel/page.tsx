@@ -9,6 +9,8 @@ import {
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 // ── Animated counter ────────────────────────────────────────
 function AnimatedCounter({ value, prefix = "", suffix = "", className = "" }: {
   value: number; prefix?: string; suffix?: string; className?: string;
