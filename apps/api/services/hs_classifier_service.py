@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 import anthropic
 import instructor
 from ..core.config import settings
+from ..core.constants import check_tariff_amendment_match
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,30 @@ Provide your best 8-digit SARS HS code suggestion with duty rate and risk assess
                     f"Suggested code {suggestion.suggested_hs_code} differs from "
                     f"current {current_hs_code}. Verify before SARS submission."
                 )
+
+        # Check against recently-amended SARS tariff categories.
+        # This catches the exact failure mode behind the 12 June 2026
+        # steel/polyethylene/machinery amendments: an importer's HS
+        # code mapping is technically correct in format but now
+        # references an OUTDATED duty rate that SARS has since changed.
+        amendment = check_tariff_amendment_match(
+            cargo_description, suggestion.suggested_hs_chapter
+        )
+        if amendment:
+            result["tariff_amendment_alert"] = {
+                "effective_date": amendment["effective_date"],
+                "category":       amendment["category"],
+                "change":         amendment["change"],
+                "source":         amendment["source"],
+            }
+            result["classification_risk"] = "high"
+            existing_action = result.get("action_required") or ""
+            result["action_required"] = (
+                f"SARS amended the {amendment['category']} tariff schedule on "
+                f"{amendment['effective_date']}: {amendment['change']}. Confirm this "
+                f"shipment's duty calculation reflects the new rate before submission. "
+                + existing_action
+            ).strip()
 
         logger.info(
             f"HS classification: '{cargo_description[:50]}' → "
