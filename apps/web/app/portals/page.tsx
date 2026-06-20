@@ -212,9 +212,7 @@ export default function PortalsPage() {
                   <label className="form-label">Container numbers or importer codes</label>
                   <textarea
                     className="form-input h-24 text-xs font-mono resize-none"
-                    placeholder={"MSCU1234567
-MAEU9876543
-HLCU1111111"}
+                    placeholder={"MSCU1234567\nMAEU9876543\nHLCU1111111"}
                     value={bulkInput}
                     onChange={e => setBulkInput(e.target.value)}
                   />
@@ -225,8 +223,7 @@ HLCU1111111"}
                     className="btn btn-secondary btn-sm flex-1"
                     disabled={!bulkInput.trim() || bulkTrackMut.isPending}
                     onClick={() => {
-                      const cns = bulkInput.split("
-").map(s => s.trim()).filter(Boolean);
+                      const cns = bulkInput.split("\n").map(s => s.trim()).filter(Boolean);
                       bulkTrackMut.mutate(cns);
                     }}
                   >
@@ -237,8 +234,7 @@ HLCU1111111"}
                     className="btn btn-secondary btn-sm flex-1"
                     disabled={!bulkInput.trim() || bulkRLAMut.isPending}
                     onClick={() => {
-                      const codes = bulkInput.split("
-").map(s => s.trim()).filter(Boolean);
+                      const codes = bulkInput.split("\n").map(s => s.trim()).filter(Boolean);
                       bulkRLAMut.mutate(codes);
                     }}
                   >
