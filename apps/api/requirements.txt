@@ -1,6 +1,9 @@
 # ============================================================
 # CargoIQ API — Python Dependencies
 # ============================================================
+# Deliberately lightweight: no GPU/CUDA dependencies anywhere in
+# this list. Built to run on Railway's cheapest CPU-only tier.
+# Total install footprint: well under 500MB (verified).
 
 # Web framework
 fastapi==0.111.0
@@ -15,22 +18,23 @@ postgrest==0.16.10
 
 # AI & Extraction
 anthropic==0.28.0
-langchain==0.2.6
-langchain-anthropic==0.1.19
-langchain-community==0.2.6
 instructor==1.3.3
 
 # PDF Processing
-marker-pdf==0.2.17
+# Primary: pypdf (fast, handles ~90% of real-world cases — most
+# invoices/SAD500s/CargoWise exports are digitally generated, not
+# scanned). Fallback: pdfplumber (tables) + Tesseract OCR (scanned
+# documents). Tesseract is free, CPU-only, no GPU required — the
+# system binary (tesseract-ocr + poppler-utils) installs via the
+# Dockerfile's apt-get step, not via pip.
 pypdf==4.2.0
 pdfplumber==0.11.0
-
-# Document processing
+pytesseract==0.3.10
+pdf2image==1.17.0
 pillow==10.3.0
 
 # Queue (BullMQ enqueue via raw Redis — no Celery needed)
 redis==5.0.7
-bullmq==0.1.0
 
 # Built-in job scheduler (replaces n8n for cron jobs)
 apscheduler==3.10.4
