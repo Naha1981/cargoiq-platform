@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-in-production"
     ALLOWED_ORIGINS: str = "http://localhost:3000"
 
+    # URLs — used to build links in emails/notifications and to
+    # reach the Next.js email-send route and Evolution API (WhatsApp).
+    API_URL: str = "http://localhost:8000"
+    WEB_URL: str = "http://localhost:3000"
+
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
@@ -22,6 +27,9 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = ""
     MAX_UPLOAD_SIZE_MB: int = 50
     SENTRY_DSN: str = ""
+
+    EVOLUTION_API_URL: str = "http://localhost:8080"
+    EVOLUTION_API_KEY: str = ""
 
     @property
     def allowed_origins_list(self) -> List[str]:
