@@ -7,8 +7,8 @@ from typing import Optional
 from ..core.config import settings
 
 logger    = logging.getLogger(__name__)
-EMAIL_API = settings.API_URL.replace("8000", "3000") + "/api/email"
-WA_API    = "http://evolution-api:8080"
+EMAIL_API = settings.WEB_URL.rstrip("/") + "/api/email"
+WA_API    = settings.EVOLUTION_API_URL
 
 async def send_compliance_alert(to: str, name: str, ref: str, sid: str, module: str, resolution: str, penalty: bool = True):
     await _email({"to": to, "toName": name,
