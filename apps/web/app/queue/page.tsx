@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Search, Filter, RefreshCw, CheckCircle, XCircle,
-  AlertTriangle, ChevronRight, Upload, Clock
+  AlertTriangle, ChevronRight, Upload, Clock, ListTodo
 } from "lucide-react";
 import { shipmentsApi } from "@/lib/api";
 import { TopNav } from "@/components/layout/TopNav";
@@ -167,7 +167,7 @@ export default function QueuePage() {
         ) : shipments.length === 0 ? (
           <div className="card">
             <EmptyState
-              icon={ListTodo_}
+              icon={ListTodo}
               title="No shipments found"
               description={status || search
                 ? "Try adjusting your filters"
@@ -305,9 +305,4 @@ export default function QueuePage() {
       </div>
     </div>
   );
-}
-
-// Needed because ListTodo is already imported above
-function ListTodo_(props: any) {
-  return <ListTodo {...props} />;
 }
