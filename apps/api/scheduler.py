@@ -221,6 +221,51 @@ async def notification_processor():
                     sid=payload.get("containerNumber", ""),
                     cw_job=None,
                 )
+            elif notif["type"] == "portal_health_alert":
+                # Platform-level alert — goes to YOU, not the client
+                # org that happened to have the failing job. Configure
+                # PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_WHATSAPP in
+                # your .env to receive these.
+                from .core.config import settings as _settings
+                from .services.notification_service import _whatsapp, _email
+
+                portal_name = payload.get("portal", "unknown")
+                msg = payload.get("message", "Portal adapter health check failed")
+
+                if _settings.PLATFORM_ADMIN_WHATSAPP:
+                    try:
+                        await _whatsapp(
+                            _settings.PLATFORM_ADMIN_WHATSAPP,
+                            f"⚠️ CargoIQ Alert: {portal_name} portal adapter is failing. {msg}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Platform WhatsApp alert failed: {e}")
+
+                if _settings.PLATFORM_ADMIN_EMAIL:
+                    try:
+                        await _email({
+                            "to": _settings.PLATFORM_ADMIN_EMAIL,
+                            "toName": "CargoIQ Ops",
+                            "subject": f"⚠️ Portal Adapter Failing: {portal_name}",
+                            "template": "compliance_alert",
+                            "data": {
+                                "shipmentRef": portal_name,
+                                "shipmentId": "",
+                                "module": "portal_health",
+                                "resolution": msg,
+                                "penaltyRisk": False,
+                                "dashboardUrl": "",
+                            },
+                        })
+                    except Exception as e:
+                        logger.error(f"Platform email alert failed: {e}")
+
+                if not _settings.PLATFORM_ADMIN_EMAIL and not _settings.PLATFORM_ADMIN_WHATSAPP:
+                    logger.warning(
+                        f"Portal health alert for {portal_name} could not be "
+                        f"delivered — set PLATFORM_ADMIN_EMAIL or "
+                        f"PLATFORM_ADMIN_WHATSAPP in .env"
+                    )
 
             admin.table("notification_queue").update({
                 "status":  "sent",
@@ -397,15 +442,31 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
 
+    # ── Job 6: Portal health monitor — every 15 minutes ───────
+    # Cannot prevent SARS/Transnet from changing their site layout —
+    # nobody can. This detects it fast: if a portal's recent job
+    # failure rate spikes, it almost always means a selector broke,
+    # not a fluke. Alerts within 15 minutes instead of someone
+    # noticing RLA checks silently stopped working a week later.
+    scheduler.add_job(
+        portal_health_monitor,
+        IntervalTrigger(minutes=15),
+        id="portal_health_monitor",
+        name="Portal adapter health check (detects broken selectors)",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+
     scheduler.start()
     _scheduler = scheduler
 
-    logger.info("✅ Scheduler started — 5 jobs registered")
+    logger.info("✅ Scheduler started — 6 jobs registered")
     logger.info("   [1] Daily RLA check         — 06:00 SAST daily")
     logger.info("   [2] Container tracker        — every 30 min")
     logger.info("   [3] Notification processor   — every 2 min")
     logger.info("   [4] Shadow audit sweep       — Mon 07:00 SAST")
     logger.info("   [5] Diesel price reminder    — 1st of month")
+    logger.info("   [6] Portal health monitor    — every 15 min")
 
     return scheduler
 
@@ -440,3 +501,101 @@ async def diesel_price_reminder():
         "          (<coast_price>,   'coast',   '<today>');\n"
         "   This keeps the FSC Auditor accurate for the new month."
     )
+
+
+# ── Job 6: Portal health monitor ─────────────────────────────
+
+# Don't alert again for the same portal within this window —
+# prevents spamming the founder every 15 minutes while a known
+# issue is being fixed.
+ALERT_COOLDOWN_HOURS = 2
+
+# Failure threshold: if this many or more of the last 10 jobs for
+# a portal failed, treat it as a likely broken selector / layout
+# change, not a transient blip.
+FAILURE_THRESHOLD = 4
+
+
+async def portal_health_monitor():
+    """
+    Checks the failure rate of each portal adapter (SARS, Transnet,
+    shipping lines) over its last 10 jobs. If failures spike, this
+    is almost always a broken Playwright selector — SARS or Transnet
+    changed their page layout, added a CAPTCHA, or a session/login
+    flow changed. There is no way to prevent this in advance; the
+    only real mitigation is finding out fast.
+
+    Sends one WhatsApp + email alert per portal per cooldown window,
+    not one per failed job — avoids spamming the founder while an
+    issue is being actively fixed.
+    """
+    admin = get_supabase_admin()
+
+    # Check each portal type separately
+    portals_seen = admin.table("portal_jobs") \
+        .select("portal") \
+        .order("created_at", desc=True) \
+        .limit(200).execute()
+
+    distinct_portals = set(r["portal"] for r in (portals_seen.data or []))
+
+    for portal in distinct_portals:
+        recent = admin.table("portal_jobs") \
+            .select("status,created_at,org_id") \
+            .eq("portal", portal) \
+            .order("created_at", desc=True) \
+            .limit(10).execute()
+
+        jobs = recent.data or []
+        if len(jobs) < 5:
+            continue  # not enough data yet to judge a pattern
+
+        failures = sum(1 for j in jobs if j["status"] == "failed")
+
+        if failures < FAILURE_THRESHOLD:
+            continue  # healthy
+
+        # Check cooldown — was this portal already alerted recently?
+        cooldown_cutoff = (datetime.utcnow() - timedelta(hours=ALERT_COOLDOWN_HOURS)).isoformat()
+        recent_alert = admin.table("notification_queue") \
+            .select("id") \
+            .eq("type", "portal_health_alert") \
+            .gte("created_at", cooldown_cutoff) \
+            .execute()
+
+        already_alerted = any(
+            (n.get("payload") or {}).get("portal") == portal
+            for n in (recent_alert.data or [])
+        )
+        if already_alerted:
+            continue
+
+        # Use the org from the most recent job as the alert recipient context
+        org_id = jobs[0]["org_id"]
+
+        logger.warning(
+            f"[SCHED] ⚠️ PORTAL HEALTH ALERT — {portal}: "
+            f"{failures}/{len(jobs)} recent jobs failed. Likely a broken "
+            f"selector or layout change. Check screenshots in "
+            f"/tmp/cargoiq-screenshots on the cw-worker service."
+        )
+
+        admin.table("notification_queue").insert({
+            "org_id": org_id,
+            "type":   "portal_health_alert",
+            "payload": {
+                "portal":         portal,
+                "failure_count":  failures,
+                "total_checked":  len(jobs),
+                "message": (
+                    f"CargoIQ's {portal} portal adapter has failed "
+                    f"{failures} of its last {len(jobs)} jobs. This usually "
+                    f"means the portal's page layout changed and the "
+                    f"automation needs a selector update. Check the "
+                    f"screenshots from the failed jobs to see what changed."
+                ),
+            },
+            "status": "pending",
+        }).execute()
+
+    logger.info(f"[SCHED] portal_health_monitor — checked {len(distinct_portals)} portal types")
