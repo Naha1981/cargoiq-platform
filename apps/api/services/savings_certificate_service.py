@@ -16,6 +16,7 @@ Rendered as HTML → PDF using WeasyPrint (or raw HTML for browser printing).
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
+from ..core.constants import DURBAN_40FT_TWO_DAY_PENALTY
 from ..core.supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
@@ -316,15 +317,15 @@ def generate_savings_certificate_html(
   <!-- Value breakdown -->
   <div class="section-title">Value Breakdown</div>
   <table class="breakdown">
-    <tr>
+    {f'''<tr>
       <td>CargoWise Transaction Savings (WiseLayer)<br>
         <span class="muted">{cw_transactions_saved} transactions compacted — eliminated from WiseTech billing</span>
       </td>
       <td class="green">{zar(cw_savings_zar)}</td>
-    </tr>
+    </tr>''' if cw_savings_zar > 0 else ''}
     <tr>
       <td>SARS Fines Prevented (Compliance Shield)<br>
-        <span class="muted">{errors_caught} compliance errors caught before submission @ R4,500 each</span>
+        <span class="muted">{errors_caught} compliance errors caught before submission</span>
       </td>
       <td class="green">{zar(fines_prevented_zar)}</td>
     </tr>
@@ -444,9 +445,21 @@ async def generate_savings_certificate(org_id: str, month_label: Optional[str] =
     # Compliance errors caught
     events = admin.table("compliance_events").select("*")         .eq("org_id", org_id).eq("penalty_risk", True)         .gte("created_at", since).execute()
     errors_caught       = len(events.data or [])
-    fines_prevented_zar = errors_caught * 4500.0
+    # Uses the verified Durban 40ft 2-day storage penalty (R14,169) as
+    # the proxy cost per compliance error — consistent with
+    # shadow_audit_service.py. This is a real, sourced figure (Maersk
+    # April 2026 tariff), not the previously-used R4,500 "SARS fine"
+    # figure, which was never traceable to any published SARS document.
+    fines_prevented_zar = errors_caught * DURBAN_40FT_TWO_DAY_PENALTY
 
-    # WiseLayer savings
+    # WiseLayer savings — NOTE: the eAdaptor XML compaction engine that
+    # would populate wisetech_transactions has not been built yet (the
+    # cw-worker currently only handles Playwright-driven air-import form
+    # filling; sea/road and XML compaction are explicitly unimplemented,
+    # "Phase 2"). This will correctly read 0 until that's built — the
+    # conditional check in generate_savings_certificate_html() hides
+    # this line entirely when there's no data, rather than displaying
+    # a confusing "0 transactions / R0" line to a real client.
     wt = admin.table("wisetech_transactions").select("*")         .eq("org_id", org_id).gte("date", since[:10]).execute()
     cw_saved       = sum(float(r.get("gross_saving_zar") or 0) for r in (wt.data or []))
     cw_tx_saved    = sum(int(r.get("saved_count") or 0) for r in (wt.data or []))
