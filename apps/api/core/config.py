@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     EVOLUTION_API_URL: str = "http://localhost:8080"
     EVOLUTION_API_KEY: str = ""
 
+    # Platform-level alerts (portal health monitor, etc.) go here —
+    # NOT to a client org's contact. Set these to your own email and
+    # WhatsApp number so you, not a client, find out when a portal
+    # adapter breaks.
+    PLATFORM_ADMIN_EMAIL: str = ""
+    PLATFORM_ADMIN_WHATSAPP: str = ""
+
     @property
     def allowed_origins_list(self) -> List[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
