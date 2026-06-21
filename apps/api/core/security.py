@@ -40,17 +40,26 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(security_scheme)
 ) -> dict:
     """
-    Validate Supabase JWT and return user payload.
-    Raises 401 if token is invalid or expired.
+    Validate a Supabase Auth JWT and return the user payload.
+    Raises 401 if the token is invalid, expired, or has a bad signature.
     """
     token = credentials.credentials
+
+    if not settings.SUPABASE_JWT_SECRET:
+        # Fail closed, not open. Running without signature verification
+        # means any hand-crafted token is accepted as a valid user —
+        # this must never happen against real client data.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server misconfigured: SUPABASE_JWT_SECRET not set"
+        )
+
     try:
-        # Supabase JWTs are signed with the JWT secret
-        # In production, verify against Supabase JWKS
-        # For now, decode without verification for dev (Supabase handles this)
         payload = jwt.decode(
             token,
-            options={"verify_signature": False}  # Supabase validates on their end
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
         )
         user_id: str = payload.get("sub")
         if not user_id:
