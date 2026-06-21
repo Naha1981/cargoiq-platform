@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    # Settings -> API -> JWT Settings -> "JWT Secret" in the Supabase
+    # dashboard. Required to actually verify token signatures — without
+    # this, any hand-crafted JWT with a fake "sub" claim is accepted.
+    SUPABASE_JWT_SECRET: str = ""
 
     ANTHROPIC_API_KEY: str = ""
     REDIS_URL: str = "redis://localhost:6379"
